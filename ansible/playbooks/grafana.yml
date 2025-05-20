@@ -1,0 +1,32 @@
+---
+- name: Install and configure Grafana
+  hosts: grafana
+  become: yes
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: ["docker.io", "docker-compose-plugin"]
+        state: present
+        update_cache: yes
+
+    - name: Run Grafana container
+      docker_container:
+        name: grafana
+        image: grafana/grafana:latest
+        ports:
+          - "3000:3000"
+        volumes:
+          - "grafana-storage:/var/lib/grafana"
+        restart_policy: always
+
+    - name: Wait for Grafana to start
+      uri:
+        url: http://localhost:3000/api/health
+        method: GET
+        status_code: 200
+        timeout: 60
+      register: result
+      until: result.status == 200
+      retries: 10
+      delay: 5

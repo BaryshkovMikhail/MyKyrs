@@ -1,0 +1,34 @@
+---
+- name: Install Elasticsearch
+  hosts: elastic
+  become: yes
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: ["docker.io", "docker-compose-plugin"]
+        state: present
+        update_cache: yes
+
+    - name: Increase vm.max_map_count
+      sysctl:
+        name: vm.max_map_count
+        value: '262144'
+        state: present
+        reload: yes
+
+    - name: Run Elasticsearch container
+      docker_container:
+        name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:7.17.13
+        env:
+          discovery.type: "single-node"
+          bootstrap.memory_lock: "false"
+          ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+        ulimits:
+          - "memlock:-1:-1"
+        ports:
+          - "9200:9200"
+        volumes:
+          - "esdata:/usr/share/elasticsearch/data"
+        restart_policy: always

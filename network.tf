@@ -100,3 +100,127 @@ resource "yandex_vpc_security_group" "web_sg" {
 
 
 }
+
+# Target Group
+resource "yandex_alb_target_group" "web_servers" {
+  name = "web-servers-tg"
+
+  target {
+    subnet_id  = yandex_vpc_subnet.develop_a.id
+    ip_address = yandex_compute_instance.web_a.network_interface.0.ip_address
+  }
+
+  target {
+    subnet_id  = yandex_vpc_subnet.develop_b.id
+    ip_address = yandex_compute_instance.web_b.network_interface.0.ip_address
+  }
+}
+
+# Backend Group
+resource "yandex_alb_backend_group" "web_backend" {
+  name = "web-backend-group"
+
+  http_backend {
+    name             = "web-http-backend"
+    weight           = 1
+    port             = 80
+    target_group_ids = [yandex_alb_target_group.web_servers.id]
+    
+    healthcheck {
+      timeout          = "10s"
+      interval        = "2s"
+      healthy_threshold   = 5
+      unhealthy_threshold = 3
+      http_healthcheck {
+        path = "/"
+      }
+    }
+  }
+}
+
+# HTTP Router
+resource "yandex_alb_http_router" "web_router" {
+  name = "web-router"
+}
+
+# Virtual Host
+resource "yandex_alb_virtual_host" "web_vhost" {
+  name           = "web-virtual-host"
+  http_router_id = yandex_alb_http_router.web_router.id
+  
+  route {
+    name = "web-route"
+    http_route {
+      http_route_action {
+        backend_group_id = yandex_alb_backend_group.web_backend.id
+      }
+    }
+  }
+}
+
+# Application Load Balancer
+resource "yandex_alb_load_balancer" "web_alb" {
+  name        = "web-alb"
+  network_id  = yandex_vpc_network.develop.id
+
+  allocation_policy {
+    location {
+      zone_id   = "ru-central1-a"
+      subnet_id = yandex_vpc_subnet.develop_a.id
+    }
+  }
+
+  listener {
+    name = "web-listener"
+    endpoint {
+      address {
+        external_ipv4_address {
+        }
+      }
+      ports = [80]
+    }
+    http {
+      handler {
+        http_router_id = yandex_alb_http_router.web_router.id
+      }
+    }
+  }
+}
+
+resource "yandex_vpc_security_group" "monitoring_sg" {
+  name       = "monitoring-sg"
+  network_id = yandex_vpc_network.develop.id
+
+  ingress {
+    description    = "Prometheus"
+    protocol       = "TCP"
+    port           = 9090
+    v4_cidr_blocks = ["10.0.0.0/8"]
+  }
+
+  ingress {
+    description    = "Grafana"
+    protocol       = "TCP"
+    port           = 3000
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "yandex_vpc_security_group" "logging_sg" {
+  name       = "logging-sg"
+  network_id = yandex_vpc_network.develop.id
+
+  ingress {
+    description    = "Elasticsearch"
+    protocol       = "TCP"
+    port           = 9200
+    v4_cidr_blocks = ["10.0.0.0/8"]
+  }
+
+  ingress {
+    description    = "Kibana"
+    protocol       = "TCP"
+    port           = 5601
+    v4_cidr_blocks = ["0.0.0.0/0"]
+  }
+}

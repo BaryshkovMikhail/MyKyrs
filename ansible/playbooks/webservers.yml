@@ -1,0 +1,60 @@
+---
+- name: Configure web servers
+  hosts: webservers
+  become: yes
+  vars:
+    nginx_user: www-data
+    nginx_group: www-data
+    website_dir: /var/www/html
+
+  tasks:
+    - name: Install nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Create website directory
+      file:
+        path: "{{ website_dir }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: '0755'
+
+    - name: Deploy static website
+      template:
+        src: ../templates/nginx/index.html.j2
+        dest: "{{ website_dir }}/index.html"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: '0644'
+
+    - name: Install Node Exporter
+      ansible.builtin.get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz
+        dest: /tmp/node_exporter.tar.gz
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /opt/
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+
+    - name: Create systemd service for Node Exporter
+      template:
+        src: "{{ playbook_dir }}/../templates/prometheus/node_exporter.service.j2"
+        dest: /etc/systemd/system/node_exporter.service
+
+    - name: Enable and start Node Exporter
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: yes
+
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes

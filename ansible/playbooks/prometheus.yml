@@ -1,0 +1,39 @@
+---
+- name: Install and configure Prometheus
+  hosts: prometheus
+  become: yes
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: ["docker.io", "docker-compose-plugin"]
+        state: present
+        update_cache: yes
+
+    - name: Create Prometheus directories
+      file:
+        path: /etc/prometheus
+        state: directory
+        mode: '0755'
+
+    - name: Configure Prometheus
+      copy:
+        content: |
+          global:
+            scrape_interval: 15s
+          
+          scrape_configs:
+            - job_name: 'node'
+              static_configs:
+                - targets: ['10.0.1.13:9100', '10.0.2.32:9100']
+        dest: /etc/prometheus/prometheus.yml
+
+    - name: Run Prometheus container
+      docker_container:
+        name: prometheus
+        image: prom/prometheus:latest
+        ports:
+          - "9090:9090"
+        volumes:
+          - "/etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
+        restart_policy: always
