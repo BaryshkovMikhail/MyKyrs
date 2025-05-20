@@ -147,26 +147,39 @@ resource "yandex_compute_instance" "web_b" {
 resource "local_file" "inventory" {
   content  = <<-XYZ
   [bastion]
-  ${yandex_compute_instance.bastion.network_interface.0.nat_ip_address}
+  ${yandex_compute_instance.bastion.network_interface.0.nat_ip_address} ansible_user=user ansible_ssh_private_key_file=~/.ssh/woland2
 
   [webservers]
-  ${yandex_compute_instance.web_a.network_interface.0.ip_address}
-  ${yandex_compute_instance.web_b.network_interface.0.ip_address}
+  ${yandex_compute_instance.web_a.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.web_a.network_interface.0.ip_address}
+  ${yandex_compute_instance.web_b.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.web_b.network_interface.0.ip_address}
 
   [prometheus]
-  ${yandex_compute_instance.prometheus.network_interface.0.ip_address}
+  ${yandex_compute_instance.prometheus.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.prometheus.network_interface.0.ip_address}
 
   [grafana]
-  ${yandex_compute_instance.grafana.network_interface.0.ip_address}
+  ${yandex_compute_instance.grafana.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.grafana.network_interface.0.ip_address}
 
   [elastic]
-  ${yandex_compute_instance.elastic.network_interface.0.ip_address}
+  ${yandex_compute_instance.elastic.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.elastic.network_interface.0.ip_address}
 
   [kibana]
-  ${yandex_compute_instance.kibana.network_interface.0.ip_address}
+  ${yandex_compute_instance.kibana.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.kibana.network_interface.0.ip_address}
 
   [webservers:vars]
-  ansible_ssh_common_args='-o ProxyCommand="ssh -p 22 -W %h:%p -q user@${yandex_compute_instance.bastion.network_interface.0.nat_ip_address}"'
+  ansible_user=user
+  ansible_ssh_private_key_file=~/.ssh/woland2
+  ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -q user@${yandex_compute_instance.bastion.network_interface.0.nat_ip_address} -i ~/.ssh/woland2"'
+
+  [docker_hosts:children]
+  prometheus
+  grafana
+  elastic
+  kibana
+
+  [docker_hosts:vars]
+  ansible_user=user
+  ansible_ssh_private_key_file=~/.ssh/woland2
+  ansible_ssh_common_args='-o ProxyCommand="ssh -W %h:%p -q user@${yandex_compute_instance.bastion.network_interface.0.nat_ip_address} -i ~/.ssh/woland2"'
 
   [monitoring:children]
   prometheus

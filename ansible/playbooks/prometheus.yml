@@ -4,11 +4,9 @@
   become: yes
 
   tasks:
-    - name: Install Docker
-      apt:
-        name: ["docker.io", "docker-compose-plugin"]
-        state: present
-        update_cache: yes
+    - name: Include Docker setup
+      include_tasks: common_docker.yml
+      when: "'docker_hosts' in group_names"
 
     - name: Create Prometheus directories
       file:
@@ -21,7 +19,6 @@
         content: |
           global:
             scrape_interval: 15s
-          
           scrape_configs:
             - job_name: 'node'
               static_configs:
@@ -32,8 +29,7 @@
       docker_container:
         name: prometheus
         image: prom/prometheus:latest
-        ports:
-          - "9090:9090"
+        ports: ["9090:9090"]
         volumes:
           - "/etc/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml"
         restart_policy: always

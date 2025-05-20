@@ -4,11 +4,9 @@
   become: yes
 
   tasks:
-    - name: Install Docker
-      apt:
-        name: ["docker.io", "docker-compose-plugin"]
-        state: present
-        update_cache: yes
+    - name: Include Docker setup
+      include_tasks: common_docker.yml
+      when: "'docker_hosts' in group_names"
 
     - name: Run Kibana container
       docker_container:
@@ -16,7 +14,6 @@
         image: docker.elastic.co/kibana/kibana:7.17.13
         env:
           ELASTICSEARCH_HOSTS: "http://10.0.1.20:9200"
-        ports:
-          - "5601:5601"
+        ports: ["5601:5601"]
         restart_policy: always
       when: "'elastic' in groups"

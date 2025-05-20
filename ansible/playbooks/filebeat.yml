@@ -4,11 +4,9 @@
   become: yes
 
   tasks:
-    - name: Install Docker
-      apt:
-        name: ["docker.io", "docker-compose-plugin"]
-        state: present
-        update_cache: yes
+    - name: Include Docker setup
+      include_tasks: common_docker.yml
+      when: "'docker_hosts' in group_names"
 
     - name: Create Filebeat config directory
       file:
@@ -25,7 +23,6 @@
             paths:
               - "/var/log/nginx/access.log"
               - "/var/log/nginx/error.log"
-
           output.elasticsearch:
             hosts: ["10.0.1.20:9200"]
         dest: /etc/filebeat/filebeat.yml
