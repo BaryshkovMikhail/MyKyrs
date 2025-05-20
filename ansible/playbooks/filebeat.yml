@@ -6,7 +6,6 @@
   tasks:
     - name: Include Docker setup
       include_tasks: common_docker.yml
-      when: "'docker_hosts' in group_names"
 
     - name: Create Filebeat config directory
       file:
@@ -30,9 +29,8 @@
     - name: Run Filebeat container
       docker_container:
         name: filebeat
-        image: docker.elastic.co/beats/filebeat:7.17.13
+        image: elastic/filebeat:7.17.13
         volumes:
           - "/etc/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml"
           - "/var/log/nginx:/var/log/nginx:ro"
         restart_policy: always
-      when: "'elastic' in groups"

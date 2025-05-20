@@ -12,7 +12,8 @@
       docker_container:
         name: grafana
         image: grafana/grafana:latest
-        ports: ["3000:3000"]
+        ports:
+          - "3000:3000"
         volumes:
           - "grafana-storage:/var/lib/grafana"
         restart_policy: always
