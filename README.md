@@ -1,14 +1,59 @@
-# MyKyrs
+# Курсовая работа на профессии "DevOps-инженер с нуля - Барышков Михаил
 
+## 1. Архитектура решения
 
-terraform init
-terraform plan
-terraform apply
+### Схема инфраструктуры
+```mermaid
+graph TD
+    BASTION -->|SSH| WEB_A
+    BASTION -->|SSH| WEB_B
+    BASTION -->|SSH| PROMETHEUS
+    BASTION -->|SSH| GRAFANA
+    BASTION -->|SSH| ELASTIC
+    BASTION -->|SSH| KIBANA
+    
+    WEB_A -->|Метрики| PROMETHEUS
+    WEB_B -->|Метрики| PROMETHEUS
+    PROMETHEUS -->|Данные| GRAFANA
+    
+    WEB_A -->|Логи| ELASTIC
+    WEB_B -->|Логи| ELASTIC
+    ELASTIC -->|Данные| KIBANA
+    
+    ALB -->|Трафик| WEB_A
+    ALB -->|Трафик| WEB_B
+```
 
+## 2. Компоненты системы
 
-for playbook in prometheus grafana elasticsearch kibana filebeat; do   ansible-playbook -i ../hosts.ini playbooks/${playbook}.yml; done
+### Terraform инфраструктура
 
-ansible-playbook -i ../hosts.ini playbooks/common_docker.yml
+Компонент |	Характеристики | 	Назначение | 
+|---------|----------------|---------------|
+Сеть | 	2 подсети | (10.0.1.0/24, 10.0.2.0/24) Разделение на зоны доступности |
+|Bastion	| 2vCPU, 1GB RAM	|Единая точка входа|
+Веб-серверы	| 2vCPU, 1GB RAM (x2) |	Nginx + экспортеры|
+Prometheus |	2vCPU, 4GB RAM |	Сбор метрик
+Grafana	| 2vCPU, 4GB RAM	| Визуализация данных
+
+### Ansible конфигурация
+
+Основные playbook'и:
+
+- common_docker.yml - установка Docker
+- nginx.yml - настройка Nginx
+- prometheus.yml - развертывание Prometheus
+- filebeat.yml - сбор логов
+- elasticsearch.yml - настройка Elasticsearch
+
+playbooks/
+├── webservers.yml       # Основной playbook для веб-серверов (включает задачи nginx)
+├── elasticsearch.yml
+├── kibana.yml
+├── prometheus.yml
+├── grafana.yml
+├── filebeat.yml
+├── common_docker.yml    # Только задачи, не запускается напрямую
 
 Запустите playbooks в правильном порядке:
 bash
