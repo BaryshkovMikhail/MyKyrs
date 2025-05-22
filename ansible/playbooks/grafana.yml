@@ -6,6 +6,7 @@
   tasks:
     - name: Include Docker setup
       include_tasks: common_docker.yml
+      when: "'docker_hosts' in group_names"
 
     - name: Run Grafana container
       docker_container:

@@ -109,6 +109,7 @@ resource "yandex_compute_instance" "web_b" {
   }
 }
 
+
 resource "local_file" "inventory" {
   content  = <<-XYZ
   [bastion]
@@ -129,9 +130,6 @@ resource "local_file" "inventory" {
 
   [kibana]
   ${yandex_compute_instance.kibana.network_interface.0.ip_address} ansible_host=${yandex_compute_instance.kibana.network_interface.0.ip_address}
-
-  [loadbalancer]
-  ${yandex_alb_load_balancer.web_alb.listener[0].endpoint[0].address[0].external_ipv4_address[0].address} ansible_host=${yandex_alb_load_balancer.web_alb.listener[0].endpoint[0].address[0].external_ipv4_address[0].address}
 
   [webservers:vars]
   ansible_user=user
@@ -156,11 +154,8 @@ resource "local_file" "inventory" {
   [logging:children]
   elastic
   kibana
-
-  [all:vars]
-  lb_public_ip=${yandex_alb_load_balancer.web_alb.listener[0].endpoint[0].address[0].external_ipv4_address[0].address}
   XYZ
-  filename = "./hosts.ini"
+  filename = "./ansible/inventory.ini"
 }
 
 

@@ -1,150 +1,60 @@
 ---
-- hosts: webservers
+- name: Configure web servers
+  hosts: webservers
   become: yes
-  name: Configure web servers
+  vars:
+    nginx_user: www-data
+    nginx_group: www-data
+    website_dir: /var/www/html
+
   tasks:
-    - name: Include Nginx setup
-      include_tasks: nginx.yml
-
-    - name: Include Docker setup
-      include_tasks: common_docker.yml
-
-    # Создание уникальных страниц для идентификации серверов
-    - name: Create server identification page
-      copy:
-        dest: /var/www/html/server_info.html
-        content: |
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Server Info</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 50px; }
-              .server-info { 
-                padding: 20px; 
-                border-radius: 5px; 
-                background-color: {% if inventory_hostname == 'web-a' %}#f0f8ff{% else %}#fff0f5{% endif %};
-                border: 2px solid {% if inventory_hostname == 'web-a' %}#4682b4{% else %}#ff69b4{% endif %};
-              }
-            </style>
-          </head>
-          <body>
-            <div class="server-info">
-              <h1>This is server {{ inventory_hostname | upper }}</h1>
-              <p>IP Address: {{ ansible_host }}</p>
-              <p>Server Role: Web Server</p>
-              <p>Zone: {{ ansible_default_ipv4.interface }}</p>
-            </div>
-          </body>
-          </html>
-        mode: 0644
-
-    # Добавление заголовка X-Backend-Server в Nginx
-    - name: Add server identification header
-      lineinfile:
-        path: /etc/nginx/nginx.conf
-        insertafter: 'server_name _;'
-        line: '    add_header X-Backend-Server "{{ inventory_hostname }}";'
+    - name: Install nginx
+      apt:
+        name: nginx
         state: present
-      notify: Validate and reload Nginx
+        update_cache: yes
 
-    # Установка Node Exporter
-    - name: Download Node Exporter
-      get_url:
-        url: "https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz"
-        dest: "/tmp/node_exporter.tar.gz"
+    - name: Create website directory
+      file:
+        path: "{{ website_dir }}"
+        state: directory
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: '0755'
+
+    - name: Deploy static website
+      template:
+        src: ../templates/nginx/index.html.j2
+        dest: "{{ website_dir }}/index.html"
+        owner: "{{ nginx_user }}"
+        group: "{{ nginx_group }}"
+        mode: '0644'
+
+    - name: Install Node Exporter
+      ansible.builtin.get_url:
+        url: https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz
+        dest: /tmp/node_exporter.tar.gz
 
     - name: Extract Node Exporter
       unarchive:
-        src: "/tmp/node_exporter.tar.gz"
-        dest: "/tmp/"
+        src: /tmp/node_exporter.tar.gz
+        dest: /opt/
         remote_src: yes
-
-    - name: Install Node Exporter binary
-      copy:
-        src: "/tmp/node_exporter-1.6.1.linux-amd64/node_exporter"
-        dest: "/usr/local/bin/node_exporter"
-        mode: '0755'
-        remote_src: yes
+        extra_opts: [--strip-components=1]
 
     - name: Create systemd service for Node Exporter
-      copy:
-        content: |
-          [Unit]
-          Description=Node Exporter
-          After=network.target
+      template:
+        src: "{{ playbook_dir }}/../templates/prometheus/node_exporter.service.j2"
+        dest: /etc/systemd/system/node_exporter.service
 
-          [Service]
-          User=root
-          ExecStart=/usr/local/bin/node_exporter
-          Restart=always
-
-          [Install]
-          WantedBy=multi-user.target
-        dest: "/etc/systemd/system/node-exporter.service"
-
-    - name: Enable Node Exporter
+    - name: Enable and start Node Exporter
       systemd:
-        name: node-exporter
+        name: node_exporter
         state: started
         enabled: yes
-        daemon_reload: yes
 
-    # Установка Nginx Exporter
-    - name: Run Nginx Exporter container
-      docker_container:
-        name: nginx-exporter
-        image: nginx/nginx-prometheus-exporter:0.11.0
-        ports:
-          - "4040:4040"
-        command: "-nginx.scrape-uri http://localhost/nginx_status"
-        restart_policy: always
-
-    # Настройка дополнительного healthcheck endpoint
-    - name: Add healthcheck configuration
-      copy:
-        dest: /etc/nginx/conf.d/health.conf
-        content: |
-          server {
-              listen 127.0.0.1:8080;
-              location /health {
-                  return 200 '{"status":"OK","server":"{{ inventory_hostname }}"}';
-                  add_header Content-Type application/json;
-              }
-          }
-        mode: 0644
-      notify: Validate and reload Nginx
-
-    # Добавляем валидацию конфига перед перезагрузкой
-    - name: Test Nginx configuration
-      command: nginx -t
-      register: nginx_test
-      changed_when: false
-      ignore_errors: true
-
-    - name: Clean up temporary files
-      file:
-        path: "{{ item }}"
-        state: absent
-      with_items:
-        - "/tmp/node_exporter.tar.gz"
-        - "/tmp/node_exporter-1.6.1.linux-amd64"
-
-  handlers:
-    - name: Validate and reload Nginx
-      block:
-        - name: Check Nginx config syntax
-          command: nginx -t
-          register: nginx_check
-          changed_when: false
-
-        - name: Reload Nginx if config is valid
-          service:
-            name: nginx
-            state: reloaded
-          when: nginx_check.rc == 0
-
-        - name: Show error if config invalid
-          debug:
-            msg: "Nginx config test failed, check configuration"
-          when: nginx_check.rc != 0
+    - name: Ensure nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: yes

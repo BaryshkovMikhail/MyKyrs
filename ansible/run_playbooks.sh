@@ -1,35 +1,37 @@
 #!/bin/bash
 
-# Скрипт для последовательного запуска Ansible playbook'ов
+# === Шаг 1: Проверяем наличие inventory.ini ===
+if [ ! -f "inventory.ini" ]; then
+  echo "Файл inventory.ini не найден. Убедитесь, что он существует."
+  exit 1
+fi
 
-# Определяем путь к inventory-файлу
-INVENTORY="../hosts.ini"
-
-# Обновленный список playbook'ов для выполнения в нужном порядке
+# === Шаг 2: Определяем список playbook'ов ===
 PLAYBOOKS=(
-  "playbooks/webservers.yml"     # Объединяет nginx + базовые экспортеры
-  "playbooks/elasticsearch.yml"
-  "playbooks/kibana.yml"
+  "playbooks/nginx.yml"
   "playbooks/prometheus.yml"
   "playbooks/grafana.yml"
+  "playbooks/elasticsearch.yml"
+  "playbooks/kibana.yml"
   "playbooks/filebeat.yml"
+  "playbooks/webservers.yml"
 )
 
-# Функция для запуска playbook с проверкой результата
+# === Функция для запуска playbook'ов ===
 run_playbook() {
   local playbook=$1
-  echo "Запускаем playbook: $playbook"
-  ansible-playbook -i "$INVENTORY" "$playbook"
-  
+  echo "Запускаю playbook: $playbook"
+  ansible-playbook -i inventory.ini "$playbook"
+
   # Проверяем код возврата
   if [ $? -ne 0 ]; then
     echo "Ошибка при выполнении playbook: $playbook"
-    echo "Прерываем выполнение скрипта."
+    echo "Прерываю выполнение скрипта."
     exit 1
   fi
 }
 
-# Основной цикл выполнения playbook'ов
+# === Основной цикл выполнения playbook'ов ===
 for playbook in "${PLAYBOOKS[@]}"; do
   run_playbook "$playbook"
 done
